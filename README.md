@@ -31,7 +31,7 @@ exports:
 - `GPTConfig` / `GPT`: lightweight GPT implementation suitable for CPU/GPU
   inference.
 - `load_model(model_dir, cuda=False)`: convenience loader that expects the
-  `beeg_config.json` and `final_model.pt` pair found in `data/models/...`.
+  `beeg_config.json` and `final_model.pt` pair found in `models/...`.
 
 Example usage (adapted from `tests/test_gpt.py`):
 
@@ -49,7 +49,7 @@ with hook_recorder() as rec:
 
 # rec is a dict that looks like {"0.attn.act_in": tensor(...), ...}
 
-pretrained = load_model("data/models/<model_id>", cuda=False)
+pretrained = load_model("models/<model_id>", cuda=False)
 ```
 
 Run tests with:
@@ -60,20 +60,20 @@ pytest tests/test_gpt.py
 
 ## Data Layout
 
-Project assets live under `data/` with the following structure:
+Project assets live under `az://openaipublic/circuit-sparsity` with the following structure:
 
-- `data/models/<model_id>/`
+- `models/<model_id>/`
   - `beeg_config.json`: serialized `GPTConfig` used to rebuild the model.
   - `final_model.pt`: checkpoint used by `circuit_sparsity.inference.gpt.load_model`.
-- `data/viz/<experiment>/<model_name>/<task_name>/<sweep>/<k>/`
+- `viz/<experiment>/<model_name>/<task_name>/<sweep>/<k>/`
   - `viz_data.pkl`: primary payload loaded by `viz.py` (contains circuit masks,
     activations, samples, importances, etc.).
   - Additional per-run outputs (masks, histograms, sample buckets) are stored
     under the same tree when produced by the preprocessing scripts.
-- `data/train_curves/<model_id>/progress.json`: training metrics consumed by
+- `train_curves/<model_id>/progress.json`: training metrics consumed by
   the dashboard’s summary table.
 - Other experiment-specific directories (for example
-  `data/dan-bridges-afrac8/`, `data/yolo10_pfrac8_afrac8/`) hold raw artifacts
+  `csp_yolo1/`, `csp_yolo2/`) hold raw artifacts
   produced while preparing pruning runs.
 
 The file paths surfaced in `viz.py` and `registries.py` assume this layout.

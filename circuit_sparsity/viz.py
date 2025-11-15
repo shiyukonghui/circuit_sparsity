@@ -192,7 +192,7 @@ def load_graph_data(importances):
     }
     task_samples = importances["task_samples"]
 
-    layers = [x / 2.0 for x in layers]  # every single stored task loss number everywhere is off by a factor of 2 for stupid reasons.
+    layers = [[y / 2.0 for y in x] for x in layers]  # every single stored task loss number everywhere is off by a factor of 2 for stupid reasons.
 
     # hotpatch for a bug in one very specific version of the importances data
     # where i forgot to list_join across ranks. should be able to remove eventually
@@ -1341,6 +1341,7 @@ def main():
             options=[
                 #######
                 "csp_yolo1",
+                "csp_yolo2",
                 # "dan-bridges-afrac8",
             ],
             index=0,
@@ -1359,12 +1360,15 @@ def main():
             for dataset_list in results:
                 dataset_options.extend(dataset_list)
         dataset_options = list(set(dataset_options))
-
         dataset_name = st.selectbox(
             "dataset",
             options=dataset_options,
             index=dataset_options.index("single_double_quote")
             if "single_double_quote" in dataset_options
+            else dataset_options.index("bracket_counting_beeg")
+            if model_name == "csp_yolo2"
+            else dataset_options.index("single_double_quote_beeg3")
+            if "single_double_quote_beeg3" in dataset_options
             else 0,
         )
     with sweepnamecol:
