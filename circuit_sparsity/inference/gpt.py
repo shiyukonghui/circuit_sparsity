@@ -8,6 +8,7 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 """
 
 
+import io
 import json
 import math
 from dataclasses import dataclass
@@ -918,7 +919,9 @@ def load_model(model_path, flash=False, grad_checkpointing=False, cuda=True):
 
     model = GPT(config)
     # model.bake_tied_aux_matrix_()
-    sd = torch.load(read_file_cached(ckpt_path), map_location="cpu")
+    sd = torch.load(
+        io.BytesIO(read_file_cached(ckpt_path)), weights_only=True, map_location="cpu"
+    )
     if "final_logits_bias" not in sd:
         sd["final_logits_bias"] = torch.zeros(config.vocab_size)
     model.load_state_dict(sd, strict=False)

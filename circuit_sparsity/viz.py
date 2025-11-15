@@ -1,6 +1,7 @@
 import concurrent.futures
 import functools
 import importlib
+import io
 import json
 import os
 import sys
@@ -225,8 +226,11 @@ def load_data(
 ):
     """Load the big blobs just once (cached)."""
     assert viz_data_path.endswith(".pt")
-    b = read_file_cached(viz_data_path)
-    viz_data = torch.load(b, weights_only=True, map_location="cpu")
+    viz_data = torch.load(
+        io.BytesIO(read_file_cached(viz_data_path)),
+        weights_only=True,
+        map_location="cpu",
+    )
     
     def _load_config(config_class, config_dict):
         import inspect
@@ -1598,11 +1602,12 @@ def get_embed_weights(model_path):
 def get_model_weights(model_path, fn=None):
     if fn is not None:
         return read_tensor_slice_from_file(
-            read_file_cached(bf.join(model_path, "final_model.pt")), fn, ()
+            io.BytesIO(read_file_cached(bf.join(model_path, "final_model.pt"))), fn, ()
         )
 
     model = torch.load(
-        read_file_cached(bf.join(model_path, "final_model.pt")), map_location="cpu"
+        io.BytesIO(read_file_cached(bf.join(model_path, "final_model.pt"))),
+        map_location="cpu",
     )
     return model
 
