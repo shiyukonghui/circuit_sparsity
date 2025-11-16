@@ -514,6 +514,7 @@ class GPTConfig:
     d_pos_emb: int | None = None
     dropout_cat_pos_emb: bool = False
     sinusoidal_cat_pos_emb: bool = False
+    enable_sparse_kernels: bool = False
 
     flash: bool = True
     sink: bool = False
@@ -919,8 +920,11 @@ def load_model(model_path, flash=False, grad_checkpointing=False, cuda=True):
 
     model = GPT(config)
     # model.bake_tied_aux_matrix_()
+    map_location = "cuda" if cuda else "cpu"
     sd = torch.load(
-        io.BytesIO(read_file_cached(ckpt_path)), weights_only=True, map_location="cpu"
+        io.BytesIO(read_file_cached(ckpt_path)),
+        weights_only=True,
+        map_location=map_location,
     )
     if "final_logits_bias" not in sd:
         sd["final_logits_bias"] = torch.zeros(config.vocab_size)
