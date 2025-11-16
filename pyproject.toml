@@ -7,7 +7,7 @@ name = "circuit_sparsity"
 version = "0.1.0"
 description = "Utilities and scripts for CS visualization"
 readme = { text = "CS visualization utilities packaged as a module.", content-type = "text/plain" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
   { name = "circuit_sparsity authors" }
 ]
