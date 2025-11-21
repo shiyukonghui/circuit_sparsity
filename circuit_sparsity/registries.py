@@ -7,11 +7,10 @@ from typing import Callable
 import tiktoken
 import torch
 import torch.nn.functional as F
-from idemlib import CacheHelper
 from tiktoken.load import read_file_cached
 
 MODEL_BASE_DIR = "https://openaipublic.blob.core.windows.net/circuit-sparsity"
-
+CACHE_DIR = os.path.expanduser("~/data/dev/shm/cache")
 
 @dataclass
 class Datapoint:
@@ -146,9 +145,6 @@ def make_retokenizer(enc: tiktoken.Encoding, old_enc: tiktoken.Encoding):
             return enc.encode(old_enc.decode(x))
 
     return _f
-
-
-blob_cache = CacheHelper(os.path.expanduser("~/data/cs/idemlib"))
 
 
 def list_join(xss: list[list]) -> list:

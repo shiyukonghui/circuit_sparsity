@@ -28,7 +28,7 @@ from tiktoken.load import read_file_cached
 
 import circuit_sparsity.registries
 from circuit_sparsity.inference.gpt import GPTConfig
-from circuit_sparsity.registries import MODEL_BASE_DIR
+from circuit_sparsity.registries import CACHE_DIR, MODEL_BASE_DIR
 from circuit_sparsity.single_tensor_pt_load_slice import read_tensor_slice_from_file
 
 BLUE = torch.tensor([0, 0, 255])  # base RGB for nodes / edges
@@ -215,7 +215,7 @@ def load_graph_data(importances):
     )
 
 
-cache = CacheHelper(os.path.expanduser("~/data/dev/shm/cache"))
+cache = CacheHelper(CACHE_DIR)
 memcache = CacheHelper(None)
 
 
@@ -777,32 +777,6 @@ def jacob_viz(
                 curve_dict[idx] = [n, m]
                 idx += 1
 
-        # slider
-        edgevar = edges  # if choice.split(".")[1] == "mlp" else edge_strengths
-
-
-        thresh = st.slider(
-            label="edge strength threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.0,  # 5 if show_impacts else 0.0,
-            step=0.01,
-            on_change=_on_choice_change,
-        )
-
-        def _recursive_map(f, x):
-            if isinstance(x, dict):
-                return {k: _recursive_map(f, v) for k, v in x.items()}
-            elif isinstance(x, list):
-                return [_recursive_map(f, v) for v in x]
-            else:
-                return f(x)
-
-        edgevar = _recursive_map(
-            lambda x: torch.where(x.abs() > thresh, x, 0.0) if isinstance(x, torch.Tensor) else x,
-            edgevar,
-        )
-
         def _display_loss(x):
             # all the stored loss numbers are off by a factor of 2 for stupid reasons. so we divide by 2
             x /= 2.0
@@ -821,7 +795,7 @@ def jacob_viz(
         fig, change_highlighted, inconn, outconn = build_figure(
             row_strengths,
             row_name_choices,
-            edgevar,
+            edges,
             choice,
             None,  # curve_dict[st.session_state.click_data],
             max_edge_val=max_edge_val,

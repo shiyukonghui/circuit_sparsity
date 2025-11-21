@@ -95,6 +95,7 @@ We release all of the models used to obtain the results in the paper. See `regis
 ## Additional Utilities
 
 - `per_token_viz_demo.py`: minimal examples for token-level visualizations.
+- `clear_cache.py`: deletes locally cached copies of blobstore files (Streamlit/viz caches and the tiktoken cache); run if you need to re-fetch fresh artifacts.
 
 The project relies on Streamlit, Plotly, matplotlib, seaborn, and torch (see
 `pyproject.toml` for the full dependency list).
