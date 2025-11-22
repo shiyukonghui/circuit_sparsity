@@ -1,8 +1,7 @@
 """
 Reproduce bracket-counting mismatch on csp_yolo2: model predicts ']' instead of ']]' on the first viz sample.
 Run from repo root:
-  source .venv/bin/activate
-  GAO_ONLINE=1 python circuit_sparsity/repro_bracket_mismatch.py
+  python circuit_sparsity/examples/bracket_counting_example.py
 """
 
 from __future__ import annotations
