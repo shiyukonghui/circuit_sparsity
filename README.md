@@ -88,14 +88,20 @@ Update `registries.py` if you relocate the data.
 
 We release all of the models used to obtain the results in the paper. See `registries.py` for a list of all models. Exact training hyperparameters can be found in [todo]
 
-- `csp_yolo1`: This is the model used in the `single_double_quote` qualitative results. This is a 118M total param model. This is a somewhat older model that was trained with methods not exactly the same as in the paper.
+- `csp_yolo1`: This is the model used in the `single_double_quote` qualitative results. This is a 118M total param model. This is a somewhat older model that was trained with methods not exactly the same as in the paper; in particular, a method for training with multiple L0 values at the same time.
 - `csp_yolo2`: This is the model used in the `bracket_counting` and `set_or_string_fixedvarname` qualitative results. This is a 475M total param model.
 - `csp_sweep1_*`: These models are used to obtain the figure 3 results. The name indicates the model size (in terms of ``expansion factor'' relative to an arbitrary baseline size), weight L0, and activation sparsity level (afrac).
 - `csp_bridge1`: The bridge model used to obtain the results in the paper.
-- `csp_bridge2`: Another bridge model.
+- `csp_bridge2`: Another somewhat older bridge model.
 - `dense1_1x`: A dense model trained on our dataset.
 - `dense1_2x`: A dense model trained on our dataset. 2x wider.
 - `dense1_4x`: A dense model trained on our dataset. 4x wider.
+
+## Sweep ids
+- `prune_v2`: 256 CARBS iters, bs=16, very old (unpublished) pruning algorithm. targeting fixed `k` rather than fixed target loss
+- `prune_v3`: 256 CARBS iters, bs=64, epochs=32, old (unpublished) algorithm. targeting fixed target loss
+- `prune_v4`: 768 CARBS iters, bs=64, epochs=48, published algorithm. targeting fixed target loss
+- `prune_v5_logitscaling`: 256 CARBS iters, bs=32, epochs=32, published algorithm with logit scaling. targeting fixed target loss
 
 ## Additional Utilities
 
