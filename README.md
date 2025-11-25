@@ -92,7 +92,7 @@ We release all of the models used to obtain the results in the paper. See `regis
 - `csp_yolo2`: This is the model used in the `bracket_counting` and `set_or_string_fixedvarname` qualitative results. This is a 475M total param model.
 - `csp_sweep1_*`: These models are used to obtain the figure 3 results. The name indicates the model size (in terms of ``expansion factor'' relative to an arbitrary baseline size), weight L0, and activation sparsity level (afrac).
 - `csp_bridge1`: The bridge model used to obtain the results in the paper.
-- `csp_bridge2`: Another somewhat older bridge model.
+- `csp_bridge2`: Another bridge model.
 - `dense1_1x`: A dense model trained on our dataset.
 - `dense1_2x`: A dense model trained on our dataset. 2x wider.
 - `dense1_4x`: A dense model trained on our dataset. 4x wider.
