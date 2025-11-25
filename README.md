@@ -86,11 +86,15 @@ Update `registries.py` if you relocate the data.
 
 ## Models
 
-We release all of the models used to obtain the results in the paper. See `registries.py` for a list of all models. Exact training hyperparameters can be found in ...
+We release all of the models used to obtain the results in the paper. See `registries.py` for a list of all models. Exact training hyperparameters can be found in [todo]
 
 - `csp_yolo1`: This is the model used in the `single_double_quote` qualitative results. This is a 118M total param model. This is a somewhat older model that was trained with methods not exactly the same as in the paper.
 - `csp_yolo2`: This is the model used in the `bracket_counting` and `set_or_string_fixedvarname` qualitative results. This is a 475M total param model.
-- `csp_sweep1_*`: These models are used to obtain the figure 3 results.
+- `csp_sweep1_*`: These models are used to obtain the figure 3 results. The name indicates the model size (in terms of ``expansion factor'' relative to an arbitrary baseline size), weight L0, and activation sparsity level (afrac).
+- `csp_bridge1`: The bridge model used to obtain the results in the paper.
+- `csp_bridge2`: Another bridge model.
+- `dense1`: A dense model trained on our dataset.
+- `dense2`: Another dense model.
 
 ## Additional Utilities
 
