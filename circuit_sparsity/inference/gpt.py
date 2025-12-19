@@ -29,16 +29,16 @@ from circuit_sparsity.inference.hook_utils import (
 from circuit_sparsity.inference.kernels import sample_top_k
 
 
-class AbsTopK(nn.Module):
-    def __init__(self, k):
+class AbsTopK(nn.Module):  # 绝对值TopK模块
+    def __init__(self, k):  # 初始化函数
         super().__init__()
-        self.k = k
+        self.k = k  # 保留前k个最大绝对值元素
 
-    def forward(self, x):
-        vals, inds = torch.topk(x.abs(), self.k, dim=-1, sorted=False)
-        ret = torch.zeros_like(x)
-        ret.scatter_(-1, inds, x.gather(-1, inds))
-        return ret
+    def forward(self, x):  # 前向传播
+        vals, inds = torch.topk(x.abs(), self.k, dim=-1, sorted=False)  # 获取绝对值最大的k个元素及其索引
+        ret = torch.zeros_like(x)  # 创建与输入相同形状的零张量
+        ret.scatter_(-1, inds, x.gather(-1, inds))  # 将选定的值放置到对应位置，其余为0
+        return ret  # 返回结果
 
 
 def barrier():
@@ -46,48 +46,48 @@ def barrier():
     pass
 
 
-class LayerNorm(nn.Module):
+class LayerNorm(nn.Module):  # 层归一化模块，支持可选偏置
     """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
 
-    def __init__(self, ndim, bias):
+    def __init__(self, ndim, bias):  # 初始化函数
         super().__init__()
-        self.weight = nn.Parameter(torch.ones(ndim))
-        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
+        self.weight = nn.Parameter(torch.ones(ndim))  # 权重参数
+        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None  # 偏置参数
 
-    def forward(self, input):
-        return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
+    def forward(self, input):  # 前向传播
+        return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)  # 应用层归一化
 
 
-class CausalSelfAttention(nn.Module):
-    def __init__(self, config):
+class CausalSelfAttention(nn.Module):  # 因果自注意力模块
+    def __init__(self, config):  # 初始化函数
         super().__init__()
-        assert config.d_model % config.n_head == 0
-        # key, query, value projections for all heads, but in a batch
+        assert config.d_model % config.n_head == 0  # 确保模型维度能被头数整除
+        # 所有头的键、查询、值投影，但以批次方式处理
         self.c_attn = config.Linear(
             config.d_model, 3 * config.d_head * config.n_head, bias=config.bias
         )
-        # output projection
+        # 输出投影
         self.c_proj = config.Linear(config.d_head * config.n_head, config.d_model, bias=config.bias)
-        # regularization
+        # 正则化
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
-        self.n_head = config.n_head
-        self.d_head = config.d_head
-        self.d_model = config.d_model
-        self.dropout = config.dropout
+        self.n_head = config.n_head  # 头数
+        self.d_head = config.d_head  # 每个头的维度
+        self.d_model = config.d_model  # 模型维度
+        self.dropout = config.dropout  # 丢弃率
 
-        self.config = config
-        # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
+        self.config = config  # 配置对象
+        # flash attention使GPU运行更快，但仅在PyTorch >= 2.0中支持
         self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention") and config.flash
 
-        if self.flash:
+        if self.flash:  # 如果使用flash attention
             self.attn_imp = (
                 SDPAWithSink(config.n_head) if config.sink else F.scaled_dot_product_attention
             )
 
-        if not self.flash:
+        if not self.flash:  # 如果不使用flash attention
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
-            # causal mask to ensure that attention is only applied to the left in the input sequence
+            # 因果掩码，确保注意力只应用于输入序列的左侧
             self.register_buffer(
                 "bias",
                 torch.tril(torch.ones(config.block_size, config.block_size)).view(
@@ -167,45 +167,48 @@ class CausalSelfAttention(nn.Module):
         return y
 
 
-class MLP(nn.Module):
-    def __init__(self, config):
+class MLP(nn.Module):  # 多层感知机模块
+    def __init__(self, config):  # 初始化函数
         super().__init__()
-        self.config = config
+        self.config = config  # 配置对象
+        # 全连接层：从模型维度到MLP维度
         self.c_fc = config.Linear(config.d_model, config.d_mlp, bias=config.bias)
+        # 激活函数，根据配置选择GELU或ReLU
         self.act_fn = {
             "gelu": nn.GELU(),
             "relu": nn.ReLU(),
         }[config.activation_type]
+        # 输出投影层：从MLP维度回到模型维度
         self.c_proj = config.Linear(config.d_mlp, config.d_model, bias=config.bias)
-        self.dropout = nn.Dropout(config.dropout)
+        self.dropout = nn.Dropout(config.dropout)  # 丢弃层
 
-    def forward(self, x):
-        x = self.config.maybe_activation_sparsity(x, "mlp_in")
-        x = hook_save("act_in", x)
+    def forward(self, x):  # 前向传播
+        x = self.config.maybe_activation_sparsity(x, "mlp_in")  # 可能应用激活稀疏性
+        x = hook_save("act_in", x)  # 保存激活输入
 
-        if self.config.debug_nans:
+        if self.config.debug_nans:  # 如果调试NaN
             assert x.isfinite().all(), "nan in mlp input"
 
-        x = self.c_fc(x)
+        x = self.c_fc(x)  # 全连接层
 
-        if self.config.debug_nans:
+        if self.config.debug_nans:  # 如果调试NaN
             assert x.isfinite().all(), "nan in mlp after c_fc"
 
-        x = self.act_fn(x)
-        x = self.config.maybe_activation_sparsity(x, "mlp_neuron")
-        x = hook_save("post_act", x)
+        x = self.act_fn(x)  # 激活函数
+        x = self.config.maybe_activation_sparsity(x, "mlp_neuron")  # 可能应用激活稀疏性
+        x = hook_save("post_act", x)  # 保存激活后输出
 
-        if self.config.debug_nans:
+        if self.config.debug_nans:  # 如果调试NaN
             assert x.isfinite().all(), "nan in mlp after act"
 
-        x = self.c_proj(x)
+        x = self.c_proj(x)  # 输出投影
 
-        if self.config.debug_nans:
+        if self.config.debug_nans:  # 如果调试NaN
             assert x.isfinite().all(), "nan in mlp after c_proj"
-        x = self.dropout(x)
+        x = self.dropout(x)  # 应用丢弃
 
-        x = self.config.maybe_activation_sparsity(x, "mlp_out")
-        return x
+        x = self.config.maybe_activation_sparsity(x, "mlp_out")  # 可能应用激活稀疏性
+        return x  # 返回结果
 
 
 class SDPAWithSink(nn.Module):

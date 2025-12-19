@@ -31,31 +31,31 @@ from circuit_sparsity.inference.gpt import GPTConfig
 from circuit_sparsity.registries import CACHE_DIR, MODEL_BASE_DIR
 from circuit_sparsity.single_tensor_pt_load_slice import read_tensor_slice_from_file
 
-BLUE = torch.tensor([0, 0, 255])  # base RGB for nodes / edges
+BLUE = torch.tensor([0, 0, 255])  # 基础RGB颜色，用于节点/边
 SAMPLES_SHOW = 5
 
 cmap = cm.get_cmap("coolwarm")
 
 
 def list_join(xss: list[list]) -> list:
-    """monadic join for lists"""
+    """列表的monadic join操作，将嵌套列表扁平化"""
     return [x for xs in xss for x in xs]
 
 
 def get_highlighted_code(code_tokens, mask):
-    # Build an HTML string with highlighted spans for masked tokens
+    # 构建带有高亮span标签的HTML字符串，用于被掩码的令牌
     highlighted_code = ""
     for token, is_masked in zip(code_tokens, mask):
-        # Convert literal '\n' tokens to real newlines in the final string
-        # so the <pre> block can interpret them.
+        # 将字面意思的'\n'令牌转换为最终字符串中的真实换行符
+        # 以便<pre>块可以解释它们。
         if token == "\n":
-            # Just append a real newline char
+            # 仅附加真实的换行字符
             token_content = "\n"
         else:
             token_content = token
 
         if is_masked:
-            # Wrap token in a highlighted <span>
+            # 将令牌包装在高亮的<span>中
             highlighted_code += (
                 f'<span style="background-color: yellow;">{token_content}</span>'
             )
@@ -72,13 +72,14 @@ def get_display_snippet(highlighted_code):
 
 
 def display_code_heatmap(
-    tokens,
-    mask,
-    minmax=None,
-    highlight_idx=None,
-    highlight_idx2=None,
-    center_zero=False,
+    tokens,  # 令牌列表
+    mask,   # 掩码值列表，用于确定每个令牌的颜色
+    minmax=None,  # 颜色映射的最小最大值范围
+    highlight_idx=None,  # 要高亮显示的第一个索引
+    highlight_idx2=None,  # 要高亮显示的第二个索引
+    center_zero=False,  # 是否以零为中心进行归一化
 ):
+    # 设置颜色归一化范围
     if minmax:
         norm = plt.Normalize(minmax[0], minmax[1])
     else:
@@ -87,7 +88,11 @@ def display_code_heatmap(
             norm = plt.Normalize(-extreme, extreme)
         else:
             norm = plt.Normalize(min(mask), max(mask))
+    
+    # 获取颜色映射
     colors = cmap(norm(mask.float().cpu()))
+    
+    # 如果指定高亮最大值，则找出最大和次大值
     if highlight_idx == "max":
         largest = mask.max()
         second_largest = torch.sort(mask).values[-2]
@@ -100,11 +105,13 @@ def display_code_heatmap(
         if second_smallest - smallest > stddev * 0.2:
             highlight_idx2 = np.argmin(mask)
 
+    # 构建HTML字符串
     html = (
         '<div style="white-space: pre-wrap; color:black; '
         'background:white; font-family:monospace; border: 1px solid grey;">'
     )
 
+    # 遍历令牌、颜色和掩码值
     for i, (tok, rgba, maskval) in enumerate(zip(tokens, colors, mask, strict=True)):
         r, g, b, a = (
             int(rgba[0] * 255),
@@ -113,10 +120,10 @@ def display_code_heatmap(
             rgba[3],
         )
 
-        # Default background style
+        # 默认背景样式
         style = f"background: rgba({r},{g},{b},{a:.4f});"
 
-        # Add bounding box if this is the highlighted token
+        # 如果这是高亮令牌，则添加边框
         if highlight_idx is not None and i == highlight_idx:
             if highlight_idx2 is None:
                 style += " border:2px solid #000000; border-radius:3px; padding:1px;"
@@ -133,33 +140,32 @@ def display_code_heatmap(
 
 
 def rebin_hist(
-    counts: torch.Tensor,
+    counts: torch.Tensor,  # 直方图计数值张量
     *,
-    bin_start: float = -20.0,
-    bin_width: float = 0.01,
-    n_out: int = 50,
+    bin_start: float = -20.0,  # 起始箱位置
+    bin_width: float = 0.01,   # 箱宽度
+    n_out: int = 50,          # 输出箱数量
 ):
     """
-    Re‑bin a 4000‑element histogram (bin_width = 0.01) into ≤ n_out bars
-    after trimming empty tails.
-    Returns (left_edges, heights, widths) ready for plt.bar(..., align='edge').
+    在修剪空尾部后，将4000元素直方图(bin_width = 0.01)重新分箱为≤n_out个条形
+    返回可用于plt.bar(..., align='edge')的(left_edges, heights, widths)。
     """
 
     counts = counts.numpy()
 
-    # 1. Trim zero tails ---------------------------------------------------
+    # 1. 修剪零尾 ---------------------------------------------------
     nz = np.flatnonzero(counts)
-    if nz.size == 0:  # completely empty
+    if nz.size == 0:  # 完全为空
         return np.empty(0), np.empty(0), np.empty(0)
 
-    lo, hi = nz[0], nz[-1] + 1  # hi is exclusive
+    lo, hi = nz[0], nz[-1] + 1  # hi是排他的
     trimmed = counts[lo:hi]
     edges = bin_start + np.arange(lo, hi + 1) * bin_width  # len = trimmed.size + 1
 
     m = trimmed.size
-    n_bins = min(n_out, m)  # never ask for more bars than we have bins
+    n_bins = min(n_out, m)  # 永远不要要求比我们拥有的箱子更多的柱子
 
-    # 2. Contiguous grouping with roughly equal #bins per group -------------
+    # 2. 连续分组，每组大致相等的箱数 -------------
     split_idx = np.linspace(0, m, n_bins + 1, dtype=int)
 
     left_edges = np.empty(n_bins, dtype=float)
@@ -180,29 +186,36 @@ def rebin_hist(
 
 
 def load_graph_data(importances):
+    # 获取层干预损失值
     layers = list(importances["ch_interv_losses"].values())  # [-4:-1]
+    # 获取行名称
     row_names = list(importances["ch_interv_losses"].keys())  # [-4:-1]
+    # 获取配对数据
     pair_data = importances["pair_data"]
+    # 获取配对连接数据
     pair_data_connections = importances["pair_data_connections"]
+    # 获取位置信息
     locs = importances["ch_interv_losses"]
 
-    # get deltas
+    # 获取增量
     layer_imps = {
-        k: x - importances["interv_loss"]  / 2  # every single stored task loss number everywhere is off by a factor of 2 for stupid reasons.
+        k: x - importances["interv_loss"]  / 2  # 每个存储的任务损失数字都因为愚蠢的原因乘了2倍
         for k, x in importances["layer_interv_losses"].items()
     }
+    # 获取任务样本
     task_samples = importances["task_samples"]
 
-    layers = [[y / 2.0 for y in x] for x in layers]  # every single stored task loss number everywhere is off by a factor of 2 for stupid reasons.
+    # 每个存储的任务损失数字都因为愚蠢的原因乘了2倍
+    layers = [[y / 2.0 for y in x] for x in layers]
 
-    # hotpatch for a bug in one very specific version of the importances data
-    # where i forgot to list_join across ranks. should be able to remove eventually
+    # 修复一个重要版本的importances数据中的bug
+    # 我忘记跨rank进行list_join了。最终应该能够移除此补丁
     if not isinstance(pair_data[0][0], np.ndarray) and not isinstance(
         pair_data[0][0], torch.Tensor
     ):
         pair_data = list_join(pair_data)
 
-    # edges are actually deltas, but node values aren't, so we need to subtract baselines from node values later in viz_3
+    # 边实际上是增量，但节点值不是，所以我们需要在viz_3中稍后从节点值中减去基线
     
     return (
         layers,
@@ -219,12 +232,12 @@ cache = CacheHelper(CACHE_DIR)
 memcache = CacheHelper(None)
 
 
-@st.cache_resource(show_spinner=False)  # avoids re‑loading on every rerun
+@st.cache_resource(show_spinner=False)  # 避免每次重新运行时重新加载
 # @cache("load_data_v5")
 def load_data(
-    viz_data_path,
+    viz_data_path,  # 可视化数据路径
 ):
-    """Load the big blobs just once (cached)."""
+    """只加载一次大块数据（缓存）。"""
     assert viz_data_path.endswith(".pt")
     viz_data = torch.load(
         io.BytesIO(read_file_cached(viz_data_path)),
@@ -243,15 +256,15 @@ def load_data(
 
 
 def rgba_blue(strength: float, alpha: float = 1.0) -> str:
-    """Map a scalar in [0,1] → rgba string, darker = weaker, bright = strong."""
+    """将[0,1]中的标量映射到rgba字符串，越暗表示越弱，越亮表示越强。"""
     if strength == 0:
         return "rgba(0,0,0,0)"
     rgb = (BLUE * abs(strength)).to(torch.int)
-    return f"rgba(0,0,255,{abs(strength):.4f})"  # scale channel intensities
+    return f"rgba(0,0,255,{abs(strength):.4f})"  # 缩放通道强度
 
 
 def layout_rows(row_lengths, custom_layouts_dict=None):
-    """Return x, y coordinates for each dot given variable row lengths."""
+    """根据可变的行长度返回每个点的x,y坐标。"""
     xs, ys = [], []
     custom_layouts_dict = custom_layouts_dict or {}
     for y, n in enumerate(row_lengths):
@@ -260,7 +273,7 @@ def layout_rows(row_lengths, custom_layouts_dict=None):
             xs.extend(custom_xs)
             ys.extend(np.full(n, y))
         else:
-            xs.extend(np.arange(n))  # simple left→right layout
+            xs.extend(np.arange(n))  # 简单的左→右布局
             ys.extend(np.full(n, y))
     return np.array(xs), np.array(ys)
 
@@ -280,7 +293,7 @@ mpl_lock = threading.Lock()
 
 
 def matplotlib_lock(func):
-    """Decorator to ensure that matplotlib plotting is thread-safe."""
+    """确保matplotlib绘图线程安全的装饰器。"""
 
     def wrapper(*args, **kwargs):
         with mpl_lock:
@@ -290,46 +303,49 @@ def matplotlib_lock(func):
 
 
 def build_figure(
-    row_strengths,
-    row_names,
-    edge_strengths,
-    choice,
-    point_id,
-    d_head,
-    n_head=None,
-    node_indices=None,
-    max_edge_val=1,
-    baseline=0,
+    row_strengths,    # 每行节点强度列表，每个元素是[0,1]范围内的浮点数列表
+    row_names,       # 行名称列表
+    edge_strengths,  # 边强度列表，每个元素是np.ndarray，表示第i行和第i+1行之间的连接（形状为n_i × n_{i+1}）
+    choice,          # 选择的模块类型，如"0.mlp"或"0.attn"
+    point_id,        # 点ID
+    d_head,          # 头维度
+    n_head=None,     # 头数
+    node_indices=None,  # 节点索引字典
+    max_edge_val=1,     # 最大边值
+    baseline=0,         # 基线值
 ):
     """
-    row_strengths : list[list[float]]  # per-node scalar ∈ [0,1]
-    edge_strengths: list[np.ndarray]   # between row i & i+1 (shape n_i × n_{i+1})
+    row_strengths : list[list[float]]  # 每个节点的标量值 ∈ [0,1]
+    edge_strengths: list[np.ndarray]   # 第i行和i+1行之间(形状 n_i × n_{i+1})
     node_indices: dict[str, list[int]]
-    choice: str (e.g 0.mlp)
+    choice: str (例如 0.mlp)
     """
 
-    abs_edge_strengths = True
+    abs_edge_strengths = True  # 是否使用绝对边强度
+    # MLP位置列表
     mlp_locs = [
-        f"{choice}.act_in",
-        f"{choice}.post_act",
-        f"{choice}.resid_delta",
+        f"{choice}.act_in",      # 激活输入
+        f"{choice}.post_act",    # 激活后
+        f"{choice}.resid_delta", # 残差增量
     ]
+    # 注意力位置列表
     attn_locs = [
-        f"{choice}.act_in",
-        f"{choice}.q",
-        f"{choice}.k",
-        f"{choice}.v",
-        f"{choice}.resid_delta",
+        f"{choice}.act_in",      # 激活输入
+        f"{choice}.q",           # Q矩阵
+        f"{choice}.k",           # K矩阵
+        f"{choice}.v",           # V矩阵
+        f"{choice}.resid_delta", # 残差增量
     ]
+    # 注意力对列表
     attn_pairs = [
-        (f"{choice}.act_in", f"{choice}.q"),
-        (f"{choice}.act_in", f"{choice}.k"),
-        (f"{choice}.act_in", f"{choice}.v"),
-        (f"{choice}.v", f"{choice}.resid_delta"),
+        (f"{choice}.act_in", f"{choice}.q"),  # 激活输入到Q
+        (f"{choice}.act_in", f"{choice}.k"),  # 激活输入到K
+        (f"{choice}.act_in", f"{choice}.v"),  # 激活输入到V
+        (f"{choice}.v", f"{choice}.resid_delta"),  # V到残差增量
     ]
 
 
-    node_names = {}
+    node_names = {}  # 节点名称字典
     for _, src_names, tgt_names, (loc_src, loc_tgt) in edge_strengths:
         if not loc_src.startswith(choice) or not loc_tgt.startswith(choice):
             continue
@@ -363,7 +379,8 @@ def build_figure(
             f"{loc=} {len(idxs)=} {len(row_strengths[row_names.index(loc)])=}"
         )
 
-    if choice.split(".")[1] == "mlp":
+    if choice.split(".")[1] == "mlp":  # 如果是MLP模块
+        # 过滤出MLP相关的行强度
         row_strengths = [
             l
             for i, l in enumerate(row_strengths)
@@ -374,41 +391,48 @@ def build_figure(
     
         assert all(isinstance(x[-1], tuple) for x in edge_strengths), f"{edge_strengths=}"
 
+        # 过滤出MLP相关的边强度
         edge_strengths = [
             x[0]
             for x in edge_strengths
             if x[-1]
             in [
-                (f"{choice}.act_in", f"{choice}.post_act"),
-                (f"{choice}.post_act", f"{choice}.resid_delta"),
+                (f"{choice}.act_in", f"{choice}.post_act"),      # 激活输入到激活后
+                (f"{choice}.post_act", f"{choice}.resid_delta"), # 激活后到残差增量
             ]
         ]
         # st.code(f"{edge_strengths=}")
 
+        # 计算每行长度
         row_lengths = [len(r) for r in row_strengths]
+        # 布局行
         X, Y = layout_rows(row_lengths)
+        # 生成节点颜色
         node_colors = [rgba_blue(s - baseline) for row in row_strengths for s in row]
 
-        if abs_edge_strengths:
+        if abs_edge_strengths:  # 如果使用绝对边强度
             edge_strengths = [np.abs(x[:, :]) for x in edge_strengths]
         disp_layouts_dict = {}
-    elif choice.split(".")[1] == "attn":
+    elif choice.split(".")[1] == "attn":  # 如果是注意力模块
+        # 获取注意力相关的行强度
         row_strengths = [
             row_strengths[row_names.index(row_name)] for row_name in attn_locs
         ]
         # st.code(f"{edge_strengths=}")
+        # 按目标位置索引边强度
         edge_strengths_tgt_indexed = {
             x[-1][1]: x[0]
             for x in edge_strengths
-            if x[-1]  # (src, tgt)
+            if x[-1]  # (源, 目标)
             in attn_pairs
         }
 
-        def only_one(xs):
+        def only_one(xs):  # 确保列表中只有一个元素的辅助函数
             assert len(xs) == 1, f"Expected one element, got {xs}"
             return xs[0]
 
         try:
+            # 获取Q、K、V的节点ID
             q_ids = node_names[
                 only_one([k for k in node_names.keys() if k[-2:] == ".q"])
             ]
@@ -422,13 +446,13 @@ def build_figure(
             st.warning("No nodes found in this layer.")
             return None, None, None, None
 
-        v_ids = [vid for vid in v_ids if vid != "bias"]
+        v_ids = [vid for vid in v_ids if vid != "bias"]  # 过滤掉偏置项
 
-        head_offsets = []
-        cur_offset = 0
-        for headidx in range(n_head):
+        head_offsets = []  # 头偏移列表
+        cur_offset = 0     # 当前偏移
+        for headidx in range(n_head):  # 为每个头计算偏移
             head_offsets.append(cur_offset)
-            delta = max(
+            delta = max(  # 计算当前头的最大维度
                 len([i for i, qid in enumerate(q_ids) if qid // d_head == headidx]),
                 len([i for i, kid in enumerate(k_ids) if kid // d_head == headidx]),
                 len([i for i, vid in enumerate(v_ids) if vid // d_head == headidx]),
@@ -438,7 +462,7 @@ def build_figure(
             if delta > 0:
                 cur_offset += 2
 
-        def ids_to_xpos(ids, padding=0):
+        def ids_to_xpos(ids, padding=0):  # 将ID转换为x位置的辅助函数
             xpos = []
             i = 0
             numnonemptyheads = 0
@@ -453,20 +477,25 @@ def build_figure(
                 i += 1
             return xpos
 
+        # 计算Q、K、V的x位置
         q_xpos = ids_to_xpos(q_ids)
         k_xpos = ids_to_xpos(k_ids)
         v_xpos = ids_to_xpos(v_ids)
 
+        # 计算每行长度
         row_lengths = [len(r) for r in row_strengths]
+        # 布局行
         X, Y = layout_rows(row_lengths)
+        # 布局字典
         disp_layouts_dict = {
-            1: q_xpos,
-            2: k_xpos,
-            3: v_xpos,
+            1: q_xpos,  # Q位置
+            2: k_xpos,  # K位置
+            3: v_xpos,  # V位置
         }
+        # 生成节点颜色
         node_colors = [rgba_blue(s - baseline) for row in row_strengths for s in row]
 
-        if abs_edge_strengths:
+        if abs_edge_strengths:  # 如果使用绝对边强度
             edge_strengths_tgt_indexed = {
                 k: np.abs(x[:, :]) for k, x in edge_strengths_tgt_indexed.items()
             }
@@ -474,9 +503,10 @@ def build_figure(
 
     # --- Nodes (Scattergl markers) ------------------------------------------
 
-    # --- Edges (Scattergl lines) -------------------------------------------
-    min_edge_val = 0  # TODO: implement this
-    bins = np.linspace(min_edge_val, max_edge_val + 1e-4, 17)  # 8 bins → 8 traces
+    # --- 节点 (Scattergl 标记) ------------------------------------------
+    # --- 边 (Scattergl 线条) -------------------------------------------
+    min_edge_val = 0  # TODO: 实现这个
+    bins = np.linspace(min_edge_val, max_edge_val + 1e-4, 17)  # 8个箱子 → 8条轨迹
     fig = go.Figure()
 
     print("POINT ID", point_id)
@@ -500,24 +530,26 @@ def build_figure(
                         color="black",  # if (x, y) != (point_id[1], point_id[0]) else "red"
                     ),
                 ),
-                customdata=[(ni, x, y)],  # 🆕 payload for click
+                customdata=[(ni, x, y)],  # 🆕 点击的有效载荷
                 hovertemplate=(
                     f"idx{node_names[locs[y]][x]}{attn_info} ablation importance Δ {float(node_colors[ni].split(',')[-1][:-1]):.4f}"
-                ),  # cut out the last value from this rgba(0,0,0,0.567) thing
+                ),  # 从这个rgba(0,0,0,0.567)中取出最后一个值
                 showlegend=False,
             )
         )
 
     annotations = []
 
+    # 输入连接字典，存储每个节点的输入连接
     inconns = defaultdict(list)
+    # 输出连接字典，存储每个节点的输出连接
     outconns = defaultdict(list)
     for k in range(len(bins) - 1):
         lo, hi = bins[k], bins[k + 1]
         x_seg, y_seg = [], []
 
-        # collect edges whose strength is in this bin
-        if choice.split(".")[1] == "mlp":
+        # 收集强度在此箱中的边
+        if choice.split(".")[1] == "mlp":  # 如果是MLP模块
             for r in range(len(row_lengths) - 1):
                 if r >= len(edge_strengths):
                     continue
@@ -529,15 +561,17 @@ def build_figure(
                     if lo <= s < hi:
                         x_seg += [i, j, None]
                         y_seg += [r, r + 1, None]
+                        # 记录输入连接
                         inconns[(locs[r + 1], node_names[locs[r + 1]][j])].append(
                             node_names[locs[r]][i]
                         )
+                        # 记录输出连接
                         outconns[(locs[r], node_names[locs[r]][i])].append(
                             node_names[locs[r + 1]][j]
                         )
 
-        elif choice.split(".")[1] == "attn":
-            for tgt_idx in range(1, len(row_lengths)):  # which target?
+        elif choice.split(".")[1] == "attn":  # 如果是注意力模块
+            for tgt_idx in range(1, len(row_lengths)):  # 哪个目标？
                 target_name = row_names[tgt_idx]
                 source_name = {y: x for x, y in attn_pairs}[target_name]
                 source_idx = row_names.index(source_name)
@@ -548,7 +582,7 @@ def build_figure(
                 nonzero_ijs = edge_strengths_tgt_indexed[target_name].nonzero()
                 for i, j in nonzero_ijs:
                     if i == edge_strengths_tgt_indexed[target_name].shape[0]:
-                        # bias has no in-connections
+                        # 偏置没有输入连接
                         continue
                     if abs_edge_strengths:
                         s = abs(edge_strengths_tgt_indexed[target_name][i, j])
@@ -559,16 +593,18 @@ def build_figure(
                     if lo <= s < hi:
                         x_seg += [i, j, None]
                         y_seg += [source_idx, tgt_idx, None]
+                        # 记录输入连接
                         inconns[(source_name, node_names[source_name][i])].append(
                             node_names[target_name][j]
                         )
+                        # 记录输出连接
                         outconns[(target_name, node_names[target_name][j])].append(
                             node_names[source_name][i]
                         )
 
-        if x_seg:  # skip empty bins
+        if x_seg:  # 跳过空箱
             for i in range(0, len(x_seg) - 2, 3):
-                # add arrowheads
+                # 添加箭头
 
                 annotations.append(
                     dict(
@@ -593,22 +629,22 @@ def build_figure(
                 )
 
     fig.update_layout(
-        xaxis=dict(visible=False),  # no axis line, ticks, or labels
+        xaxis=dict(visible=False),  # 没有轴线、刻度或标签
         margin=dict(l=0, r=0, t=0, b=0),
-        hovermode="closest",  # optional: remove extra padding
+        hovermode="closest",  # 可选：移除额外的填充
         annotations=annotations,
     )
-    if choice.split(".")[1] == "mlp":
+    if choice.split(".")[1] == "mlp":  # 如果是MLP模块
         fig.update_yaxes(
-            tickmode="array",  # use the arrays below
-            tickvals=[0, 1, 2],  # where the ticks sit
-            ticktext=mlp_locs,  # what text to show
+            tickmode="array",  # 使用下面的数组
+            tickvals=[0, 1, 2],  # 刻度位置
+            ticktext=mlp_locs,  # 显示的文本
         )
-    elif choice.split(".")[1] == "attn":
+    elif choice.split(".")[1] == "attn":  # 如果是注意力模块
         fig.update_yaxes(
-            tickmode="array",  # use the arrays below
-            tickvals=[0, 1, 2, 3, 4],  # where the ticks sit
-            ticktext=attn_locs,  # what text to show
+            tickmode="array",  # 使用下面的数组
+            tickvals=[0, 1, 2, 3, 4],  # 刻度位置
+            ticktext=attn_locs,  # 显示的文本
         )
     fig.update_yaxes(
         showline=False, showgrid=False, zeroline=False, showticklabels=True
@@ -617,10 +653,10 @@ def build_figure(
 
     cur_selected = None
 
-    def change_highlighted(point_id):
+    def change_highlighted(point_id):  # 改变高亮的函数
         nonlocal cur_selected
 
-        # remove previously selected point
+        # 移除之前选择的点
         if cur_selected is not None:
             fig.data.remove(cur_selected)
 
@@ -633,10 +669,10 @@ def build_figure(
                 color=node_colors[ni],
                 line=dict(width=1, color="red"),
             ),
-            customdata=[(ni, x, y)],  # 🆕 payload for click
+            customdata=[(ni, x, y)],  # 🆕 点击的有效载荷
             hovertemplate=(
                 f"idx{node_names[locs[y]][x]}{attn_info} ablation importance {float(node_colors[ni].split(',')[-1][:-1]):.4f}"
-            ),  # cut out the last value from this rgba(0,0,0,0.567) thing
+            ),  # 从这个rgba(0,0,0,0.567)中取出最后一个值
             showlegend=False,
         )
         fig.add_trace(newtrace)
@@ -646,25 +682,34 @@ def build_figure(
 
 
 def jacob_viz(
-    viz_data,
+    viz_data,  # 可视化数据
 ):
+    # 获取保留的节点
     retained_nodes = viz_data["circuit_data"]
+    # 获取样本字典
     samples_dict = viz_data["samples"]
+    # 获取重要性数据
     importances = viz_data["importances"]
 
+    # 获取模型配置
     model_config = importances["beeg_model_config"]
 
+    # 获取编码器
     enc = get_encoding(model_config.tokenizer_name)
 
+    # 加载图数据
     rows, row_names, edges, edges_weights, locs, layer_imps, task_data = (
         load_graph_data(importances)
     )
 
+    # 创建两个列用于绘图和信息显示
     tab_plot, tab_info = st.columns([1, 1])
 
+    # 如果会话状态中没有点击数据，则初始化
     if "click_data" not in st.session_state:
         st.session_state.click_data = 0
 
+    # 选择变化时的回调函数
     def _on_choice_change():
         st.session_state.click_data = 0
 
@@ -1172,10 +1217,11 @@ def jacob_viz(
                             )
 
 
-def decode_single_token(enc, t):
+def decode_single_token(enc, t):  # 解码单个令牌的函数
+    # 将令牌解码为字节，然后转换为UTF-8字符串
     string_repr = enc.decode_single_token_bytes(t).decode("utf-8", errors="replace")
-    assert isinstance(string_repr, str)
-    return string_repr
+    assert isinstance(string_repr, str)  # 确保结果是字符串
+    return string_repr  # 返回字符串表示
 
 
 @memcache("local_listdir_v0")
@@ -1297,24 +1343,25 @@ def plot_all_pruning_losses(viz_data, k):
     st.code(f"{viz_data['prune_config']=}")
 
 
-def main():
-    importlib.reload(circuit_sparsity.registries)
+def main():  # 主函数，构建Streamlit界面
+    importlib.reload(circuit_sparsity.registries)  # 重新加载注册表模块
 
-    # substantially reduces lag on reruns
+    # 大幅减少重新运行时的延迟
     st.config.set_option("runner.postScriptGC", False)
 
-    status_placeholder = st.empty()
-    trace_mon_kill = install_trace_mon(status_placeholder)
+    status_placeholder = st.empty()  # 状态占位符
+    trace_mon_kill = install_trace_mon(status_placeholder)  # 安装跟踪监视器
 
-    base_paths = [
+    base_paths = [  # 基础路径列表
         os.path.expanduser(f"{MODEL_BASE_DIR}/viz"),
     ]
+    # 创建列用于选择模型、数据集、剪枝方法和k值
     modelnamecol, datasetcol, sweepnamecol, kcol, k_out_col = st.columns(
         [1.5, 1, 1, 1, 0.25]
     )
-    tabs = st.tabs(["main viz", "wte/wpe viz"])
-    with modelnamecol:
-        model_name = st.selectbox(
+    tabs = st.tabs(["main viz", "wte/wpe viz"])  # 创建标签页
+    with modelnamecol:  # 模型选择列
+        model_name = st.selectbox(  # 模型选择框
             "model",
             options=[
                 #######
@@ -1324,20 +1371,21 @@ def main():
             ],
             index=0,
         )
-    with datasetcol:
-        dataset_options = []
+    with datasetcol:  # 数据集选择列
+        dataset_options = []  # 数据集选项列表
 
-        def get_dataset_options_for_base_path(base_path):
+        def get_dataset_options_for_base_path(base_path):  # 获取基础路径的数据集选项
             try:
                 return list(local_listdir(os.path.join(base_path, model_name)))
             except FileNotFoundError:
                 return []
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:  # 并行获取数据集选项
             results = list(executor.map(get_dataset_options_for_base_path, base_paths))
             for dataset_list in results:
                 dataset_options.extend(dataset_list)
-        dataset_options = list(set(dataset_options))
+        dataset_options = list(set(dataset_options))  # 去重
+        # 数据集选择框，根据模型和数据集名称设置默认选项
         dataset_name = st.selectbox(
             "dataset",
             options=dataset_options,
@@ -1349,21 +1397,21 @@ def main():
             if "single_double_quote_beeg3" in dataset_options
             else 0,
         )
-    with sweepnamecol:
-        sweep_options = []
+    with sweepnamecol:  # 剪枝方法选择列
+        sweep_options = []  # 剪枝选项列表
 
-        def get_sweep_options_for_base_path(base_path):
+        def get_sweep_options_for_base_path(base_path):  # 获取基础路径的剪枝选项
             try:
                 return list(local_listdir(f"{base_path}/{model_name}/{dataset_name}"))
             except FileNotFoundError:
                 return []
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:  # 并行获取剪枝选项
             results = list(executor.map(get_sweep_options_for_base_path, base_paths))
             for sweep_list in results:
                 sweep_options.extend(sweep_list)
 
-        sweep_options = list(set(sweep_options))
+        sweep_options = list(set(sweep_options))  # 去重
 
         sweep_name = st.selectbox("pruning method", options=sweep_options, index=0)
 
